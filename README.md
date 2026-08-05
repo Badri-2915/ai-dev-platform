@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CodeLens AI — AI Developer Productivity Platform
+
+Connect your GitHub repositories and ask natural language questions about your codebase. Answers are grounded in actual source code using RAG (Retrieval-Augmented Generation), eliminating AI hallucinations.
+
+## Architecture
+
+```
+User → Next.js Frontend → API Routes → PostgreSQL (pgvector)
+                                     ↘ Worker (clone, chunk, embed)
+                                     ↘ LLM Provider (OpenAI / Ollama)
+```
+
+**Full RAG Pipeline:** Code files are chunked → embedded into vectors → stored in PostgreSQL → retrieved by semantic similarity → used as context for LLM responses.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS |
+| Backend | Next.js API Routes |
+| Database | PostgreSQL + pgvector |
+| LLM | OpenAI GPT-4o or Ollama (local) |
+| Auth | NextAuth.js + GitHub OAuth |
+| DevOps | Docker, Docker Compose, GitHub Actions |
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+
+- PostgreSQL 16+ with [pgvector](https://github.com/pgvector/pgvector) extension
+- GitHub OAuth App (for authentication)
+- OpenAI API key OR Ollama running locally
+
+### 1. Clone and install
+
+```bash
+git clone <your-repo-url>
+cd ai-dev-platform
+npm install
+```
+
+### 2. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Fill in your `.env` file:
+
+- **`DATABASE_URL`** — PostgreSQL connection string
+- **`GITHUB_ID`** / **`GITHUB_SECRET`** — from [GitHub OAuth App](https://github.com/settings/developers)
+- **`NEXTAUTH_SECRET`** — generate with `openssl rand -base64 32`
+- **`OPENAI_API_KEY`** — if using OpenAI
+- **`LLM_PROVIDER`** — `"openai"` or `"ollama"`
+
+### 3. Set up database
+
+```bash
+# Start PostgreSQL with pgvector (via Docker)
+docker compose up db -d
+
+# Run migrations
+npx prisma migrate dev
+
+# Generate Prisma client
+npx prisma generate
+```
+
+### 4. Run development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Docker (full stack)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# With OpenAI
+docker compose up -d
 
-## Learn More
+# With Ollama (local LLM)
+docker compose --profile ollama up -d
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Features
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **GitHub OAuth** — sign in and connect private repos
+- **Public repo URL** — paste any public GitHub repo URL
+- **Smart chunking** — code files split into semantic chunks
+- **Vector embeddings** — stored in PostgreSQL with pgvector
+- **Semantic search** — cosine similarity retrieval
+- **Streaming responses** — real-time LLM output via SSE
+- **Source citations** — file paths and line numbers in every answer
+- **Dual LLM support** — OpenAI or Ollama, switchable via env
+- **Dark/light theme** — full theme support
+- **Conversation history** — persistent chat threads per repo
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+├── app/
+│   ├── api/
+│   │   ├── auth/          # NextAuth
+│   │   ├── chat/          # Chat + streaming SSE
+│   │   ├── conversations/ # Conversation CRUD
+│   │   ├── github/repos/  # GitHub repo listing
+│   │   └── repos/         # Repo CRUD + ingestion
+│   ├── auth/signin/       # Sign-in page
+│   ├── chat/[repoId]/     # Chat interface
+│   ├── dashboard/         # Dashboard
+│   └── page.tsx           # Landing page
+├── components/
+│   ├── ui/                # Reusable UI components
+│   ├── navbar.tsx
+│   └── providers.tsx
+├── lib/
+│   ├── auth.ts            # NextAuth config
+│   ├── db/prisma.ts       # Prisma client
+│   ├── llm/               # LLM/embedding provider abstraction
+│   ├── ingestion/         # Clone, chunk, embed pipeline
+│   └── search/            # Vector search
+└── types/                 # TypeScript declarations
+```
