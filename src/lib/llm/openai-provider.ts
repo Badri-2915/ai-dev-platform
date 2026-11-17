@@ -59,7 +59,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   constructor() {
     this.client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     this.model = "text-embedding-3-small";
-    this.dimensions = parseInt(process.env.EMBEDDING_DIMENSIONS || "1536", 10);
+    this.dimensions = parseInt(process.env.EMBEDDING_DIMENSIONS || "768", 10);
   }
 
   async embed(text: string): Promise<number[]> {
