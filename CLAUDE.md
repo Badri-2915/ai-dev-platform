@@ -1,1 +1,2 @@
-@AGENTS.md
+> [!sec-blue]
+> @AGENTS.md

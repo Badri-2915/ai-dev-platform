@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { searchCodeChunks } from "@/lib/search/vector-search";
+import { buildContext, trimHistory } from "@/lib/search/context-manager";
 import { getLLMProvider } from "@/lib/llm";
 
 const SYSTEM_PROMPT = `You are an expert code assistant. You answer questions about a codebase based on the source code provided to you as context.
@@ -45,15 +46,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Search for relevant code chunks
-  const searchResults = await searchCodeChunks(repositoryId, message, 10);
+  const searchResults = await searchCodeChunks(repositoryId, message, { topK: 10 });
 
-  // Build context from search results
-  const codeContext = searchResults
-    .map(
-      (result, i) =>
-        `--- Source ${i + 1}: ${result.filePath} (lines ${result.startLine}-${result.endLine}) ---\n${result.content}`
-    )
-    .join("\n\n");
+  // Build context from search results (token-aware truncation)
+  const { context: codeContext } = buildContext(searchResults);
 
   // Get or create conversation
   let convId = conversationId;
@@ -84,6 +80,11 @@ export async function POST(req: NextRequest) {
     take: 20,
   });
 
+  // Trim history if it exceeds limits
+  const trimmedHistory = trimHistory(
+    history.map((msg) => ({ role: msg.role, content: msg.content }))
+  );
+
   // Build messages for LLM
   const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
   ];
 
   // Add conversation history (skip the context message)
-  for (const msg of history) {
+  for (const msg of trimmedHistory) {
     messages.push({
       role: msg.role as "user" | "assistant",
       content: msg.content,
